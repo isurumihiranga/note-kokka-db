@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NOTE කොක්ක - Your trusted collection of study notes for Sri Lankan students">
+    <title>NOTE කොක්ක - Home</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
+     crossorigin="anonymous"></script>
+    
+    <!-- React and ReactDOM from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // API Configuration
+        // Use a relative path so the API resolves correctly when site is served from a subfolder.
+        // If you host at the webroot, change this to '/api'.
+        const API_BASE_URL = './api'; // Update this if your API is in a different location
+        
+        // Admin Credentials (for authentication)
+        const ADMIN_EMAIL = "isurumihi1@gmail.com";
+        const ADMIN_PASSWORD = "22022imd";
+
+        // Analytics Helper Functions
+        const trackVisit = () => {
+            const now = new Date();
+            const visits = JSON.parse(localStorage.getItem('visits') || '[]');
+            visits.push(now.toISOString());
+            localStorage.setItem('visits', JSON.stringify(visits));
+        };
+
+        const getAnalytics = () => {
+            const visits = JSON.parse(localStorage.getItem('visits') || '[]');
+            const now = new Date();
+            
+            const today = visits.filter(v => {
+                const visitDate = new Date(v);
+                return visitDate.toDateString() === now.toDateString();
+            }).length;
+
+            const thisWeek = visits.filter(v => {
+                const visitDate = new Date(v);
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                return visitDate >= weekAgo;
+            }).length;
+
+            const thisMonth = visits.filter(v => {
+                const visitDate = new Date(v);
+                return visitDate.getMonth() === now.getMonth() && 
+                       visitDate.getFullYear() === now.getFullYear();
+            }).length;
+
+            return { today, thisWeek, thisMonth, total: visits.length };
+        };
+
+        // API Helper Functions
+        const apiRequest = async (endpoint, method = 'GET', data = null, requiresAuth = false) => {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            };
+
+            if (requiresAuth) {
+                const credentials = btoa(`${ADMIN_EMAIL}:${ADMIN_PASSWORD}`);
+                options.headers['Authorization'] = `Basic ${credentials}`;
+            }
+
+            if (data && method !== 'GET') {
+                options.body = JSON.stringify(data);
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+                const text = await response.text();
+
+                // Try to parse JSON; if parsing fails return the raw text as an error message
+                try {
+                    const result = JSON.parse(text);
+                    // attach HTTP status for better debugging
+                    if (result && typeof result === 'object') result._httpStatus = response.status;
+                    return result;
+                } catch (parseError) {
+                    console.error('API returned non-JSON response:', text);
+                    return { success: false, message: `Invalid JSON response from server: ${text}` };
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, message: error.message };
+            }
+        };
+
+        // Floating Balls Background Component
+        const FloatingBalls = () => {
+            const balls = Array.from({ length: 15 }, (_, i) => ({
+                id: i,
+                size: Math.random() * 60 + 20,
+                left: Math.random() * 100,
+                delay: Math.random() * 5,
+                duration: Math.random() * 10 + 15
+            }));
+
+            return (
+                <div className="floating-balls">
+                    {/* Background Image */}
+                    <div 
+                        className="floating-balls-bg-image"
+                        style={{
+                            backgroundImage: 'url(./backgroundimage.jpeg)',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            backgroundAttachment: 'fixed',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            zIndex: 0,
+                            opacity: 0.15
+                        }}
+                    />
+                    
+                    {/* Animated Balls */}
+                    {balls.map(ball => (
+                        <div
+                            key={ball.id}
+                            className="ball"
+                            style={{
+                                width: `${ball.size}px`,
+                                height: `${ball.size}px`,
+                                left: `${ball.left}%`,
+                                animationDelay: `${ball.delay}s`,
+                                animationDuration: `${ball.duration}s`,
+                                position: 'absolute',
+                                zIndex: 1
+                            }}
+                        />
+                    ))}
+                </div>
+            );
+        };
+
+        // Admin Login Modal Component
+       const AdminLoginModal = ({ isOpen, onClose, onLogin, onNavigateHome }) => {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                setError('');
+
+                if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+                    sessionStorage.setItem('isAdmin', 'true');
+                    onLogin();
+                    onClose();
+                    setEmail('');
+                    setPassword('');
+                } else {
+                    //setError('Invalid credentials!');
+                    // navigate to home automatically on invalid login
+                    if (typeof onNavigateHome === 'function') {
+                        onNavigateHome();
+                    }
+                }
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <>
+                    <div className="modal-overlay" onClick={onClose}></div>
+                    <div className="admin-login-modal">
+                        <div className="modal-header">
+                            <h3>Login</h3>
+                            <button className="close-btn" onClick={onClose}>✕</button>
+                        </div>
+                        <form onSubmit={handleSubmit}>
+                            <input
+                                type="email"
+                                placeholder="Email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                            <input
+                                type="password"
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                            {error && <div className="error-message">{error}</div>}
+                            <button type="submit" className="login-btn">Login</button>
+                        </form>
+                    </div>
+                </>
+            );
+        };
+
+        // ...existing code...
+// Header Component
+const Header = ({ currentPage, setCurrentPage, isAdmin, onAdminLogout }) => {
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [showAdminModal, setShowAdminModal] = useState(false);
+    const [theme, setTheme] = useState(() => {
+        return localStorage.getItem('theme') || 'dark';
+    });
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+    }, [theme]);
+
+    const navItems = [
+        { name: 'Home', id: 'home' },
+        { name: 'Notes', id: 'notes' },
+        { name: 'About', id: 'about' }
+    ];
+
+    if (isAdmin) {
+        navItems.push({ name: 'Admin Panel', id: 'admin' });
+    }
+
+    const handleAdminClick = () => {
+        if (isAdmin) {
+            sessionStorage.removeItem('isAdmin');
+            onAdminLogout();
+            setCurrentPage('home');
+        } else {
+            setShowAdminModal(true);
+        }
+    };
+
+    return (
+        <>
+            <header className="header">
+                <div className="header-content">
+                    <div className="logo-section" onClick={() => setCurrentPage('home')} style={{cursor: 'pointer'}}>
+                        <div className="logo-container">
+                            <img src="logo.jpeg" alt="NOTE කොක්ක Logo" />
+                        </div>
+                        <div className="logo-text">NOTE කොක්ක</div>
+                    </div>
+
+                    <button className="mobile-menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
+                        {menuOpen ? '✕' : '☰'}
+                    </button>
+
+                    <nav className={`nav ${menuOpen ? 'nav-open' : ''}`}>
+                        {navItems.map(item => (
+                            <button
+                                key={item.id}
+                                className={`nav-link ${currentPage === item.id ? 'active' : ''}`}
+                                onClick={() => {
+                                    setCurrentPage(item.id);
+                                    setMenuOpen(false);
+                                }}
+                            >
+                                {item.name}
+                            </button>
+                        ))}
+                    </nav>
+
+                    <div className="header-controls">
+                        <button 
+                            className="theme-toggle-btn"
+                            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+                        >
+                            {theme === 'dark' ? '☀️' : '🌙'}
+                        </button>
+
+                        <button 
+                            className="admin-icon-btn"
+                            onClick={handleAdminClick}
+                            title={isAdmin ? 'Logout' : 'Login'}
+                        >
+                            {isAdmin ? '👤' : '🔐'}
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <AdminLoginModal 
+                isOpen={showAdminModal}
+                onClose={() => setShowAdminModal(false)}
+                onLogin={() => window.location.reload()}
+                onNavigateHome={() => { setCurrentPage('home'); setShowAdminModal(false); }}
+            />
+        </>
+    );
+};
+// ...existing code...
+
+        // AdSense Component
+        const AdSense = ({ slot, format, style = {} }) => {
+            useEffect(() => {
+                try {
+                    (window.adsbygoogle = window.adsbygoogle || []).push({});
+                } catch (e) {
+                    console.error('AdSense error:', e);
+                }
+            }, []);
+
+            return (
+                <div className="ad-container" style={style}>
+                    <ins className="adsbygoogle"
+                         style={{ display: 'block' }}
+                         data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+                         data-ad-slot={slot}
+                         data-ad-format={format}
+                         data-full-width-responsive="true"></ins>
+                </div>
+            );
+        };
+
+   // Footer Component
+        const Footer = () => {
+            const socialLinks = [
+                { name: 'YouTube', icon: 'fab fa-youtube', url: 'https://www.youtube.com/@NoteKokka', color: '#FF0000' },
+                { name: 'Instagram', icon: 'fab fa-instagram', url: 'https://www.instagram.com/notekokka?igsh=cXBtNzBhb294Yndi', color: '#E4405F' },
+                { name: 'TikTok', icon: 'fab fa-tiktok', url: 'https://www.tiktok.com/@notekokka?_r=1&_t=ZS-93ia4A3NwrU', color: '#000000' },
+                { name: 'Facebook', icon: 'fab fa-facebook', url: 'https://www.facebook.com/share/1B46ARzfgY/', color: '#1877F2' }
+            ];
+
+            return (
+                <footer className="footer">
+                    <div className="footer-content">
+                        <div className="footer-description">
+                            <h3>NOTE කොක්ක</h3>
+                            <p>ඔබේ අධ්‍යයනය සඳහා විශ්වාසදායක සටහන් එකතුවක්! මෙහි ඔබට විවිධ විෂයයන් සඳහා ගුණාත්මක සටහන් සහ ඉගෙනුම් සම්පත් ලබා ගත හැකිය.</p>
+                        </div>
+
+                        <div className="social-links">
+                            <h4>Connect With Us</h4>
+                            <div className="social-icons">
+                                {socialLinks.map(social => (
+                                    <a
+                                        key={social.name}
+                                        href={social.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="social-icon"
+                                        style={{ '--social-color': social.color }}
+                                        aria-label={social.name}
+                                    >
+                                        <i className={social.icon}></i>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="footer-bottom">
+                            <p>&copy; 2026 NOTE කොක්ක. All Rights Reserved.</p>
+                            
+                            
+                            <img src='mc.png' alt='MC Creation Logo' className='mc-logo' />   
+                            <h6> Created by - MC Creation </h6>
+                            
+                        </div>
+                    </div>
+                </footer>
+            );
+        };
+
+
+        // Home Page Component
+        const HomePage = ({ setCurrentPage }) => {
+            return (
+                <div className="page home-page">
+                    <div className="hero-section">
+                        <div className="hero-content">
+                            <h1 className="hero-title">
+                                <span className="title-line">Welcome to</span>
+                                <span className="title-main">NOTE කොක්ක</span>
+                            </h1>
+                            <p className="hero-subtitle">ඔබේ අධ්‍යයනය සඳහා විශ්වාසදායක සටහන් එකතුව</p>
+                            <button className="cta-button" onClick={() => setCurrentPage('notes')}>
+                                Browse Notes
+                            </button>
+                        </div>
+                    </div>
+
+                    <AdSense slot="1111111111" format="horizontal" style={{margin: '2rem auto'}} />
+
+                    
+
+                    <AdSense slot="5555555555" format="rectangle" style={{margin: '2rem auto'}} />
+                </div>
+            );
+        };
+
+        // Notes Page Component (Now fetches from database)
+        const NotesPage = ({ subjects, loading, error, onRefresh }) => {
+            if (loading) {
+                return (
+                    <div className="page notes-page">
+                        <div className="loading-container">
+                            <div className="loading-spinner"></div>
+                            <p>Loading subjects...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (error) {
+                return (
+                    <div className="page notes-page">
+                        <div className="error-container">
+                            <p className="error-message">⚠️ {error}</p>
+                            <button onClick={onRefresh} className="retry-btn">Retry</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="page notes-page">
+                    <div className="notes-content">
+                        <h1 className="page-title">අධ්‍යයන සටහන්</h1>
+                   
+
+                        <AdSense slot="6666666666" format="horizontal" style={{margin: '2rem auto'}} />
+
+                        <div className="subjects-section">
+                            <div className="subjects-grid-large">
+                                {subjects.map((subject) => (
+                                    <a 
+                                        key={subject.id}
+                                        href={subject.driveLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="subject-card-large"
+                                    >
+                                        <div className="subject-icon-large">{subject.icon}</div>
+                                        <div className="subject-content">
+                                            <h3 className="subject-name-large">{subject.name}</h3>
+                                            <p className="subject-description">Access complete study notes</p>
+                                        </div>
+                                        <div className="subject-arrow-large">
+                                            <span>Open</span>
+                                            <span className="arrow">→</span>
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+
+                        {subjects.length > 4 && (
+                            <AdSense slot="2222222222" format="rectangle" style={{margin: '2rem auto'}} />
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // About Page Component
+        const AboutPage = () => {
+            return (
+                <div className="page about-page">
+                    <div className="about-content">
+                        <div className="about-section">
+                            <div className="about-card">
+                                <h2>අපගේ අරමුණ</h2>
+                                <p>NOTE කොක්ක හි අපගේ මෙහෙවර වන්නේ සිසුන්ට ගුණාත්මක අධ්‍යයන සම්පත් නොමිලේ ලබා දීමයි. අපි විශ්වාස කරන්නේ අධ්‍යාපනය සැමට ලබා ගත හැකි විය යුතු බවයි.</p>
+                            </div>
+
+                            <AdSense slot="3333333333" format="rectangle" style={{margin: '2rem auto'}} />
+
+                            <div className="about-card">
+                                <h2>අපගේ දැක්ම</h2>
+                                <p>Note කොක්ක අපි ඔබගේ සියලුම අධ්‍යන කටයුතු සදහා උපකාර වන සටහන් සොයා ගැනීමේදී ඇති වූ
+                                     අභියෝගය විසඳා නොමිලේම සටහන් ලබා දෙන්නෙමු. 
+                            අපි ඉදිරියටත් ඔබට ගුණාත්මක සටහන් ලබා දෙමින් අධ්‍යාපනික සේවයක් කරන්නෙමු.</p>
+                            </div>
+
+
+                            <div className="about-card">
+                                <h2>අපෙන් ඔබට</h2>
+                                <ul>
+                                    <li>විවිධ විෂයයන් සඳහා සම්පූර්ණ සටහන්</li>
+                                    <li>අධ්‍යයන මාර්ගෝපදේශ සහ උපදෙස්</li>
+                                    <li>නිතිපතා යාවත්කාලීන කරන ලද අන්තර්ගතය</li>
+                                </ul>
+                            </div>
+
+                            
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        
+        // Admin Panel Component (Updated with database operations)
+        const AdminPanel = ({ subjects, onSubjectsUpdate }) => {
+            const analytics = getAnalytics();
+            const [showAddForm, setShowAddForm] = useState(false);
+            const [editingSubject, setEditingSubject] = useState(null);
+            const [formData, setFormData] = useState({
+                name: '',
+                icon: '',
+                driveLink: ''
+            });
+            const [message, setMessage] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const resetForm = () => {
+                setFormData({ name: '', icon: '', driveLink: '' });
+                setEditingSubject(null);
+                setShowAddForm(false);
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setMessage('');
+                setLoading(true);
+
+                if (!formData.name || !formData.icon || !formData.driveLink) {
+                    setMessage('❌ Please fill all fields!');
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    let result;
+                    if (editingSubject) {
+                        // Update existing subject
+                        result = await apiRequest(
+                            '/subjects.php',
+                            'PUT',
+                            { ...formData, id: editingSubject.id },
+                            true
+                        );
+                    } else {
+                        // Add new subject
+                        result = await apiRequest(
+                            '/subjects.php',
+                            'POST',
+                            formData,
+                            true
+                        );
+                    }
+
+                    if (result.success) {
+                        setMessage(`✅ ${editingSubject ? 'Subject updated' : 'Subject added'} successfully!`);
+                        resetForm();
+                        onSubjectsUpdate(); // Refresh subjects list
+                        setTimeout(() => setMessage(''), 3000);
+                    } else {
+                        setMessage(`❌ Error: ${result.message}`);
+                    }
+                } catch (error) {
+                    setMessage(`❌ Error: ${error.message}`);
+                }
+                
+                setLoading(false);
+            };
+
+            const handleEdit = (subject) => {
+                setEditingSubject(subject);
+                setFormData({
+                    name: subject.name,
+                    icon: subject.icon,
+                    driveLink: subject.driveLink
+                });
+                setShowAddForm(true);
+            };
+
+            const handleDelete = async (id) => {
+                if (!confirm('Are you sure you want to delete this subject?')) {
+                    return;
+                }
+
+                setLoading(true);
+                setMessage('');
+
+                try {
+                    const result = await apiRequest(
+                        '/subjects.php',
+                        'DELETE',
+                        { id },
+                        true
+                    );
+
+                    if (result.success) {
+                        setMessage('✅ Subject deleted successfully!');
+                        onSubjectsUpdate(); // Refresh subjects list
+                        setTimeout(() => setMessage(''), 3000);
+                    } else {
+                        setMessage(`❌ Error: ${result.message}`);
+                    }
+                } catch (error) {
+                    setMessage(`❌ Error: ${error.message}`);
+                }
+                
+                setLoading(false);
+            };
+
+            return (
+                <div className="page admin-page">
+                    <div className="admin-content">
+                        <h1 className="page-title">Admin Panel</h1>
+                        
+                        <div className="analytics-section">
+                            <h2>Analytics</h2>
+                            <div className="analytics-grid">
+                                <div className="analytics-card">
+                                    <div className="analytics-number">{analytics.today}</div>
+                                    <div className="analytics-label">Today's Visits</div>
+                                </div>
+                                <div className="analytics-card">
+                                    <div className="analytics-number">{analytics.thisWeek}</div>
+                                    <div className="analytics-label">This Week</div>
+                                </div>
+                                <div className="analytics-card">
+                                    <div className="analytics-number">{analytics.thisMonth}</div>
+                                    <div className="analytics-label">This Month</div>
+                                </div>
+                                <div className="analytics-card">
+                                    <div className="analytics-number">{analytics.total}</div>
+                                    <div className="analytics-label">Total Visits</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="subjects-management">
+                            <div className="section-header">
+                                <h2>Manage Subjects</h2>
+                                <button 
+                                    className="add-subject-btn"
+                                    onClick={() => setShowAddForm(!showAddForm)}
+                                >
+                                    {showAddForm ? '✕ Cancel' : '+ Add Subject'}
+                                </button>
+                            </div>
+
+                            {message && (
+                                <div className={`message ${message.includes('✅') ? 'success' : 'error'}`}>
+                                    {message}
+                                </div>
+                            )}
+
+                            {showAddForm && (
+                                <div className="add-subject-form">
+                                    <h3>{editingSubject ? 'Edit Subject' : 'Add New Subject'}</h3>
+                                    <form onSubmit={handleSubmit}>
+                                        <div className="form-group">
+                                            <label>Subject Name</label>
+                                            <input
+                                                type="text"
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                                placeholder="e.g., Mathematics"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Icon Emoji</label>
+                                            <input
+                                                type="text"
+                                                value={formData.icon}
+                                                onChange={(e) => setFormData({...formData, icon: e.target.value})}
+                                                placeholder="e.g., 📐"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Google Drive Link</label>
+                                            <input
+                                                type="url"
+                                                value={formData.driveLink}
+                                                onChange={(e) => setFormData({...formData, driveLink: e.target.value})}
+                                                placeholder="https://drive.google.com/drive/folders/..."
+                                                required
+                                            />
+                                        </div>
+                                        <div className="form-actions">
+                                            <button type="submit" className="submit-btn" disabled={loading}>
+                                                {loading ? 'Saving...' : (editingSubject ? 'Update Subject' : 'Add Subject')}
+                                            </button>
+                                            {editingSubject && (
+                                                <button type="button" className="cancel-btn" onClick={resetForm}>
+                                                    Cancel Edit
+                                                </button>
+                                            )}
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+
+                            <div className="subjects-list">
+                                <h3>Current Subjects ({subjects.length})</h3>
+                                {subjects.length === 0 ? (
+                                    <p className="no-subjects">No subjects found. Add your first subject!</p>
+                                ) : (
+                                    <div className="subjects-table">
+                                        {subjects.map((subject) => (
+                                            <div key={subject.id} className="subject-row">
+                                                <div className="subject-info">
+                                                    <span className="subject-icon">{subject.icon}</span>
+                                                    <span className="subject-name">{subject.name}</span>
+                                                </div>
+                                                <div className="subject-actions">
+                                                    <button 
+                                                        className="edit-btn"
+                                                        onClick={() => handleEdit(subject)}
+                                                        disabled={loading}
+                                                    >
+                                                        ✏️ Edit
+                                                    </button>
+                                                    <button 
+                                                        className="delete-btn"
+                                                        onClick={() => handleDelete(subject.id)}
+                                                        disabled={loading}
+                                                    >
+                                                        🗑️ Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Main App Component
+        const App = () => {
+            const [currentPage, setCurrentPage] = useState('home');
+            const [isAdmin, setIsAdmin] = useState(() => {
+                return sessionStorage.getItem('isAdmin') === 'true';
+            });
+            const [subjects, setSubjects] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+
+            // Fetch subjects from database
+            const fetchSubjects = async () => {
+                setLoading(true);
+                setError(null);
+                
+                try {
+                    const result = await apiRequest('/subjects.php', 'GET');
+                    
+                    if (result.success) {
+                        setSubjects(result.data || []);
+                    } else {
+                        setError(result.message || 'Failed to load subjects');
+                    }
+                } catch (err) {
+                    setError('Unable to connect to server');
+                    console.error('Fetch error:', err);
+                }
+                
+                setLoading(false);
+            };
+
+            useEffect(() => {
+                trackVisit();
+                fetchSubjects();
+            }, []);
+
+            const handleAdminLogout = () => {
+                setIsAdmin(false);
+            };
+
+            const renderPage = () => {
+                switch (currentPage) {
+                    case 'home':
+                        return <HomePage setCurrentPage={setCurrentPage} />;
+                    case 'notes':
+                        return <NotesPage subjects={subjects} loading={loading} error={error} onRefresh={fetchSubjects} />;
+                    case 'about':
+                        return <AboutPage />;
+                    
+                    case 'admin':
+                        return isAdmin ? <AdminPanel subjects={subjects} onSubjectsUpdate={fetchSubjects} /> : <HomePage setCurrentPage={setCurrentPage} />;
+                    default:
+                        return <HomePage setCurrentPage={setCurrentPage} />;
+                }
+            };
+
+            return (
+                <div className="app">
+                    <FloatingBalls />
+                    <Header 
+                        currentPage={currentPage}
+                        setCurrentPage={setCurrentPage}
+                        isAdmin={isAdmin}
+                        onAdminLogout={handleAdminLogout}
+                    />
+                    <main className="main-content">
+                        {renderPage()}
+                    </main>
+                    <Footer />
+                </div>
+            );
+        };
+
+        // Render App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
